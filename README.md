@@ -6,7 +6,10 @@ provider outage by failing over to the next model, reads the photos/PDFs/voice n
 send it, and **writes its own tools** when it needs a capability it doesn't have.
 
 Point it at whatever model you like — a local Ollama/LM Studio, or any OpenAI-compatible
-API. With a local model, nothing leaves your machine. Note: Atlas was previously called Jarvis, which is due to it being a continuation of my Jarvis Repo, but now with a better name, so some files might still say Jarvis
+API. With a local model, nothing leaves your machine.
+
+> **Note:** Atlas was previously called Jarvis (it continues my Jarvis repo, now with a
+> better name) — so some files and internals still say Jarvis.
 
 ## Features
 
@@ -43,20 +46,20 @@ git clone <this repo>
 cd Deploy_jarvis
 python setup.py                     # walks you through everything (see below)
 .venv\Scripts\python -m jarvis      # start (Linux/macOS: .venv/bin/python -m jarvis)
+```
 
-if that does not work:
+<details>
+<summary>Manual install (if <code>python setup.py</code> fails on your machine)</summary>
 
-cd "your path"
+```powershell
+cd Deploy_jarvis
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1        # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 python -m jarvis setup
-
-After setup, run
-cd "your path" <- neglect if you are already in it
-.\.venv\Scripts\Activate.ps1
-python -m jarvis
+python -m jarvis                    # start (from an activated venv, anytime after)
 ```
+</details>
 
 `python setup.py` does the whole install in one pass:
 
