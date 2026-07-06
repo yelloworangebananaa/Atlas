@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+import subprocess
 from pathlib import Path
 
 import requests
@@ -23,9 +24,34 @@ def _startup():
         voice.start(cfg)
     drivesync.start(cfg)  # mirror the Google Drive 'raw' folder into the vault raw inbox
     try:
+        _start_whatsapp_bridge(cfg)  # before connect_all so whatsapp-mcp finds it
+    except Exception as exc:
+        logging.getLogger("jarvis").warning("WhatsApp bridge autostart failed: %s", exc)
+    try:
         mcp_client.connect_all()
     except Exception as exc:  # tools are optional; chat must still work
         logging.getLogger("jarvis").warning("MCP startup failed: %s", exc)
+
+
+def _start_whatsapp_bridge(cfg):
+    """WhatsApp ships with Atlas: if the connector is enabled and the bridge is linked
+    but not running, start it alongside the app (same console — it dies with us).
+    Never linked => stay quiet; the QR pairing needs a terminal (python setup.py)."""
+    if not any(e.get("name") == "whatsapp-mcp" and e.get("enabled") for e in cfg["mcp_servers"]):
+        return
+    wb = config.REPO_ROOT / "whatsapp-bridge"
+    if not (wb / "auth_info_multi" / "creds.json").exists():
+        return
+    try:
+        requests.get("http://localhost:3000/status", timeout=1)
+        return  # already running
+    except requests.RequestException:
+        pass
+    log_file = (wb / "bridge.log").open("a", encoding="utf-8")
+    subprocess.Popen(["npm", "start"], cwd=str(wb), shell=(os.name == "nt"),
+                     stdout=log_file, stderr=log_file)
+    audit("whatsapp_bridge_autostart")
+    logging.getLogger("jarvis").info("WhatsApp bridge starting (log: whatsapp-bridge/bridge.log)")
 
 
 @app.get("/")

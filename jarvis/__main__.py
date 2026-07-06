@@ -26,6 +26,39 @@ def _ask(prompt, default):
     return answer or default
 
 
+# Every bundled connector in connectors/, registered at setup so the Connectors panel
+# shows them all. Credential-free ones start enabled; ones that need their own setup
+# step (WhatsApp bridge, Google sign-in, Gmail creds) start disabled — setup.py flips
+# them on once configured. file-writer/vault-writer stay off (os-tools already writes
+# files); whatsapp-reader stays off (whatsapp-mcp includes its one tool).
+CONNECTOR_DEFAULTS = {
+    "web-search": True,
+    "research": True,
+    "file-writer": False,
+    "vault-writer": False,
+    "whatsapp-mcp": False,
+    "whatsapp-reader": False,
+    "google-drive-mcp": False,
+    "comms-bridge": False,
+}
+
+
+def register_bundled_connectors(cfg):
+    """Add every connectors/*/server.py to cfg['mcp_servers'] (idempotent — existing
+    entries and their enabled toggles are left alone)."""
+    have = {e["name"] for e in cfg["mcp_servers"]}
+    for name, enabled in CONNECTOR_DEFAULTS.items():
+        server = config.REPO_ROOT / "connectors" / name / "server.py"
+        if name in have or not server.exists():
+            continue
+        cfg["mcp_servers"].append({
+            "name": name,
+            "transport": "stdio",
+            "command": [sys.executable, str(server)],
+            "enabled": enabled,
+        })
+
+
 def setup():
     print("=== Atlas setup ===")
     cfg = config.load()
@@ -82,6 +115,8 @@ def setup():
             "command": ["claude", "mcp", "serve"],
             "enabled": False,
         })
+
+    register_bundled_connectors(cfg)
 
     config.save(cfg)
     print(f"Saved config.json - model {cfg['llm_model']} at {cfg['llm_base_url']}")

@@ -1,36 +1,39 @@
-"""Google Drive MCP for managing files, searching, and reading documents.
+"""Google Drive MCP: search and read files (read-only scope).
 
-Agent-authored MCP server. Review this code, then enable it in the Connectors
-panel (it is DISABLED by default).
+Enabled by `python setup.py` (Google Drive step), which installs the Google
+libraries into the venv, copies your OAuth client JSON here, and runs
+`python server.py auth` for the one-time browser sign-in. Tokens refresh
+themselves after that.
 """
-from mcp.server.fastmcp import FastMCP
-import os
 import json
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
+import sys
+from pathlib import Path
+
+from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("google-drive-mcp")
 
-CREDS_PATH = "google_drive_creds.json"
-TOKEN_PATH = "token.json"
+DIR = Path(__file__).resolve().parent  # creds/token live next to this file, not the CWD
+CREDS_PATH = DIR / "google_drive_creds.json"
+TOKEN_PATH = DIR / "token.json"
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+NOT_AUTHED = "Not authorized yet — run `python setup.py` (Google Drive step) to sign in."
 
 
 def get_drive_service():
-    creds = None
-    if os.path.exists(TOKEN_PATH):
-        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
+    from googleapiclient.discovery import build
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
+    if not TOKEN_PATH.exists():
+        return NOT_AUTHED
+    creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+    if not creds.valid:
+        if creds.expired and creds.refresh_token:
             creds.refresh(Request())
+            TOKEN_PATH.write_text(creds.to_json(), encoding="utf-8")
         else:
-            return "Auth required: Please run the manual authentication flow first."
-
-        with open(TOKEN_PATH, "w") as token:
-            token.write(creds.to_json())
-
+            return NOT_AUTHED
     return build("drive", "v3", credentials=creds)
 
 
@@ -39,7 +42,7 @@ def search_files(q: str) -> str:
     """Search for files in Google Drive.
 
     Args:
-        q: The search query.
+        q: The search query (Drive query syntax, e.g. "name contains 'report'").
     """
     try:
         service = get_drive_service()
@@ -71,5 +74,19 @@ def read_file(file_id: str) -> str:
         return f"Error reading file: {str(e)}"
 
 
+def auth():
+    """One-time interactive OAuth (run by setup.py): browser sign-in, saves token.json."""
+    from google_auth_oauthlib.flow import InstalledAppFlow
+
+    if not CREDS_PATH.exists():
+        sys.exit(f"Missing {CREDS_PATH} — download an OAuth client JSON first (python setup.py walks you through it).")
+    creds = InstalledAppFlow.from_client_secrets_file(str(CREDS_PATH), SCOPES).run_local_server(port=0)
+    TOKEN_PATH.write_text(creds.to_json(), encoding="utf-8")
+    print(f"Authorized — token saved to {TOKEN_PATH}")
+
+
 if __name__ == "__main__":
-    mcp.run()
+    if len(sys.argv) > 1 and sys.argv[1] == "auth":
+        auth()
+    else:
+        mcp.run()

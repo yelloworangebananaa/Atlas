@@ -1,4 +1,5 @@
 """Config = one gitignored config.json at repo root, plus a tiny .env loader."""
+import copy
 import json
 import os
 from pathlib import Path
@@ -51,7 +52,7 @@ def load_env(path=ENV_PATH):
 
 
 def load(path=None):
-    cfg = dict(DEFAULTS)
+    cfg = copy.deepcopy(DEFAULTS)  # deep: mutating cfg's lists must not bleed into DEFAULTS
     try:
         # utf-8-sig: tolerate the BOM Notepad/PowerShell add when hand-editing
         cfg.update(json.loads(Path(path or CONFIG_PATH).read_text(encoding="utf-8-sig")))

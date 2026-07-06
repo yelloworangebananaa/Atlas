@@ -21,6 +21,20 @@ def test_env_parser(tmp):
     assert os.environ["JARVIS_TEST_EXISTING"] == "old", "never overrides existing env"
 
 
+def test_register_bundled_connectors(tmp):
+    from jarvis import __main__ as entry
+
+    cfg = config.load(Path(tmp) / "missing.json")  # pure defaults
+    entry.register_bundled_connectors(cfg)
+    names = {e["name"]: e["enabled"] for e in cfg["mcp_servers"]}
+    assert names["web-search"] and names["research"], "credential-free connectors start enabled"
+    assert not names["whatsapp-mcp"] and not names["google-drive-mcp"], "cred-gated ones start disabled"
+    cfg["mcp_servers"][0]["enabled"] = not cfg["mcp_servers"][0]["enabled"]
+    before = json.dumps(cfg["mcp_servers"])
+    entry.register_bundled_connectors(cfg)  # idempotent: re-run keeps count and toggles
+    assert json.dumps(cfg["mcp_servers"]) == before, "existing entries and toggles untouched"
+
+
 def test_config_roundtrip(tmp):
     path = Path(tmp) / "config.json"
     cfg = config.load(path)  # missing file -> defaults
@@ -496,7 +510,8 @@ def test_propose_rejects_bad_schedule(tmp):
 
 
 if __name__ == "__main__":
-    for fn in (test_env_parser, test_config_roundtrip, test_append_journal, test_retrieve,
+    for fn in (test_env_parser, test_register_bundled_connectors,
+               test_config_roundtrip, test_append_journal, test_retrieve,
                test_openai_tools_mapping, test_create_tool_server, test_propose_scheduled_job,
                test_audit_format, test_state_resets_on_error, test_env_upsert,
                test_control_plane_guard, test_provider_round_trip,

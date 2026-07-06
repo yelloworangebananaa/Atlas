@@ -23,9 +23,11 @@ API. With a local model, nothing leaves your machine. Note: Atlas was previously
   and tells you it switched. Pool multiple API keys per provider with rotation + cooldowns.
 - 🖼️ **Multi-modal** — drop an image, PDF, or text file into chat (or send it over WhatsApp)
   and Atlas reads it: images to a vision model, PDFs to text, voice notes transcribed.
-- 💬 **WhatsApp** — text Atlas from your phone; media works the same as in-app. Optional
+- 💬 **WhatsApp built in** — the installer links your phone with a QR code; after that the
+  bridge **starts automatically with Atlas**. Media works the same as in-app. Optional
   email→WhatsApp notifier included.
-- 🗂️ **Google Drive sync (opt-in)** — two-way mirror a Drive `raw` folder with your vault.
+- 🗂️ **Google Drive** — a connector that searches/reads your Drive (one-time browser
+  sign-in during setup), plus an opt-in two-way folder mirror via Drive for Desktop.
 - 🛠️ **Builds its own tools** — see [Self-extending tools](#self-extending-tools). When no
   tool fits, Atlas writes a new MCP server, the app **starts and validates it** before
   enabling, and it can toggle it on itself. Same for scheduled jobs (validated cron).
@@ -39,7 +41,7 @@ API. With a local model, nothing leaves your machine. Note: Atlas was previously
 ```bash
 git clone <this repo>
 cd Deploy_jarvis
-python setup.py        # creates a venv, installs deps, asks for your vault + model
+python setup.py                     # walks you through everything (see below)
 .venv\Scripts\python -m jarvis      # start (Linux/macOS: .venv/bin/python -m jarvis)
 
 if that does not work:
@@ -56,9 +58,24 @@ cd "your path" <- neglect if you are already in it
 python -m jarvis
 ```
 
-`setup.py` is re-runnable. It creates a memory vault from `vault-template/`, detects your
-model backend (or takes an API key), and can optionally wire up WhatsApp. Then
-`python -m jarvis` starts the server and opens the chat UI.
+`python setup.py` does the whole install in one pass:
+
+1. **venv + dependencies** — created locally in `.venv/`.
+2. **Memory vault** — a folder of Markdown, created from `vault-template/` (point Obsidian
+   at it to browse).
+3. **Model backend** — auto-detects a running Ollama or LM Studio; otherwise takes a free
+   [build.nvidia.com](https://build.nvidia.com) API key (or use Settings later for any
+   OpenAI-compatible endpoint). All bundled connectors are registered here too.
+4. **WhatsApp** — on by default, type `n` to skip. Asks which number(s) may talk to Atlas,
+   then shows a **QR code right in the terminal**; scan it once (WhatsApp → Linked devices)
+   and setup continues by itself. After that the bridge starts whenever Atlas starts.
+5. **Google Drive** — on by default, type `n` to skip. Points you at the 2-minute Google
+   Cloud OAuth-client download, then opens a **browser sign-in**; the token refreshes
+   itself afterwards.
+
+Every step is skippable and `setup.py` is re-runnable — run it again anytime to add what
+you skipped. Then `python -m jarvis` starts the server, opens the chat UI, and (if linked)
+brings the WhatsApp bridge up with it.
 
 ### Prerequisites
 
@@ -66,7 +83,7 @@ model backend (or takes an API key), and can optionally wire up WhatsApp. Then
 - **A model backend** — one of: [Ollama](https://ollama.com) (easiest, local),
   [LM Studio](https://lmstudio.ai) (local), or a free API key from
   [build.nvidia.com](https://build.nvidia.com) / any OpenAI-compatible endpoint.
-- **Node.js 18+** — only if you want the WhatsApp bridge.
+- **Node.js 20+** — only if you want WhatsApp.
 - **Obsidian** (optional) — to browse/edit the memory vault (it's just Markdown files).
 - A microphone for voice. No mic? Atlas runs chat-only automatically.
 
@@ -116,43 +133,81 @@ a short note so the turn still answers.
 
 ## WhatsApp
 
-Run `python setup.py` and choose to enable WhatsApp (needs Node.js). It `npm install`s the
-bridge, asks for the number(s) allowed to talk to Atlas, and writes `whatsapp-bridge/.env`.
-Then:
+Configured during `python setup.py`: it `npm install`s the bridge, asks for the number(s)
+allowed to talk to Atlas, writes `whatsapp-bridge/.env`, and shows the pairing QR in the
+terminal — scan once with WhatsApp → Linked Devices and you're done. The session is saved,
+so from then on **the bridge starts automatically whenever Atlas starts** (its output goes
+to `whatsapp-bridge/bridge.log`). You can also run it standalone:
 
 ```bash
 cd whatsapp-bridge
-npm start        # scan the QR once with WhatsApp → Linked Devices
+npm start
 ```
 
-Only numbers on your allowlist can drive Atlas (an assistant with shell access must not
-take orders from strangers). Inbound photos/PDFs/voice notes are handled exactly like an
-in-app upload. An optional email→WhatsApp notifier is included (`GMAIL_USER` +
-[App Password](https://myaccount.google.com/apppasswords) in `whatsapp-bridge/.env`).
+The allowlist is enforced **twice**: the bridge drops messages from unknown numbers, and
+Atlas itself re-checks the sender against `notify_whatsapp_to` in `config.json` (an
+assistant with shell access must not take orders from strangers — keep the list tight).
+Inbound photos/PDFs/voice notes are handled exactly like an in-app upload.
 
-## Google Drive sync (opt-in)
+The optional **email→WhatsApp notifier** (offered in the same setup step) texts you when
+new mail arrives; it needs a Gmail address + [App Password](https://myaccount.google.com/apppasswords).
+Note: `NOTIFY_PHONE` must be a *different* number than the one Atlas is linked to — a
+WhatsApp device can't message itself. Providing Gmail also enables the `comms-bridge`
+connector so Atlas can read and send email.
 
-If you use **Google Drive for Desktop**, Atlas can two-way mirror a Drive `raw` folder
-with your vault's `raw/` inbox — drop a file in Drive from your phone and it shows up in
-your memory (and vice-versa). Off by default; enable in `config.json`:
+To relink a different phone: delete `whatsapp-bridge/auth_info_multi/` and re-run
+`python setup.py`.
 
-```jsonc
-"gdrive_sync_enabled": true,
-"gdrive_raw_path": "G:\\My Drive\\raw"   // your Drive-for-Desktop mount
-```
+## Google Drive
 
-One-way guard: if the Drive folder is unmounted, nothing is deleted (an offline Drive can't
-wipe your local files).
+Two independent features:
+
+- **Drive connector** (`google-drive-mcp`) — Atlas searches and reads files in your Drive
+  (read-only scope). Set up during `python setup.py`: create a free OAuth *Desktop app*
+  client at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
+  (enable the *Google Drive API*, add yourself as a test user), download the JSON, and the
+  installer handles the browser sign-in. Tokens live next to the connector and refresh
+  themselves.
+- **Folder sync (opt-in)** — if you use **Google Drive for Desktop**, Atlas can two-way
+  mirror a Drive `raw` folder with your vault's `raw/` inbox — drop a file in Drive from
+  your phone and it shows up in your memory (and vice-versa). Off by default; enable in
+  `config.json`:
+
+  ```jsonc
+  "gdrive_sync_enabled": true,
+  "gdrive_raw_path": "G:\\My Drive\\raw"   // your Drive-for-Desktop mount
+  ```
+
+  One-way guard: if the Drive folder is unmounted, nothing is deleted (an offline Drive
+  can't wipe your local files).
 
 ## Connectors (MCP)
 
-Every capability beyond chat and memory is an [MCP](https://modelcontextprotocol.io) server.
-The bundled **`os-tools`** server gives Atlas full local file + PowerShell access. Manage
-connectors in the **Connectors** panel (add by URL, toggle, remove) or in `config.json`
-under `mcp_servers`. Example connectors ship in `connectors/` (web-search, google-drive,
-whatsapp, comms-bridge, …) — most just need their own credentials via `.env` (see each
-file). Atlas can also **expose itself** as an MCP server so another agent can drive it:
+Every capability beyond chat and memory is an [MCP](https://modelcontextprotocol.io)
+server. Setup registers all bundled connectors; manage them in the **Connectors** panel
+(add by URL or command, toggle, remove) or in `config.json` under `mcp_servers`:
+
+| Connector          | What Atlas can do            | On by default        | Needs                    |
+| ------------------ | ---------------------------- | -------------------- | ------------------------ |
+| `os-tools`         | files + PowerShell/shell     | ✅                   | —                        |
+| `web-search`       | search the web, fetch pages  | ✅                   | —                        |
+| `research`         | arXiv / PubMed / Semantic Scholar + citations | ✅  | —                        |
+| `whatsapp-mcp`     | send + read WhatsApp         | after WhatsApp setup | Node 20+, one QR scan    |
+| `google-drive-mcp` | search + read Drive files    | after Drive setup    | OAuth client JSON        |
+| `comms-bridge`     | send + read Gmail            | after Gmail creds    | Gmail App Password       |
+| `file-writer`, `vault-writer` | write a file      | off — `os-tools` already does this | —          |
+| `whatsapp-reader`  | read WhatsApp (subset)       | off — included in `whatsapp-mcp` | —            |
+| `claude-code`      | delegate coding tasks        | off — see [Coding](#coding) | Claude Code CLI   |
+
+Atlas can also **expose itself** as an MCP server so another agent can drive it:
 `python -m jarvis.mcp_server`.
+
+### Coding
+
+If the [Claude Code](https://claude.com/claude-code) CLI is installed, setup registers it
+as a `claude-code` connector — **disabled by default** because it's an autonomous coding
+agent with its own file/shell access on top of the one Atlas already has. Enable it in the
+Connectors panel when you want Atlas to hand off real coding work; keep it off otherwise.
 
 ### Self-extending tools
 
@@ -173,6 +228,23 @@ This is the headline capability: **when no existing tool covers a need, Atlas wr
 
 Every one of these actions is in `jarvis_actions.log`.
 
+## Troubleshooting
+
+- **No QR code appeared** — the terminal window may be too small for the ASCII QR; maximize
+  it and re-run. Behind a corporate/antivirus TLS proxy, upgrade Node (24+) so the bridge
+  can use `--use-system-ca` (the launcher enables it automatically when available).
+- **`npm start` exits immediately** — run `node --version`; the bridge needs Node 20+.
+- **WhatsApp tools say "not connected"** — the bridge auto-starts only after you've linked
+  once (`python setup.py`). Check `whatsapp-bridge/bridge.log`.
+- **Bridge kicked offline ("SESSION CONFLICT")** — another WhatsApp Web session took over.
+  On your phone: Linked devices → log out the others, then restart Atlas.
+- **Drive tools say "Not authorized yet"** — re-run `python setup.py` and do the Google
+  Drive step; the browser sign-in writes `connectors/google-drive-mcp/token.json`.
+- **No local model found** — start Ollama/LM Studio first, or paste an API key when setup
+  asks; you can switch providers anytime in Settings.
+- **Port in use** — Atlas uses `18923` (`port` in `config.json`) and the bridge uses `3000`
+  (`PORT` in `whatsapp-bridge/.env`).
+
 ## Security & trust
 
 Atlas runs with **your** user permissions. Be deliberate:
@@ -182,9 +254,10 @@ Atlas runs with **your** user permissions. Be deliberate:
   powerful — only run Atlas on a machine and account you're comfortable giving an assistant.
 - Only connect MCP servers and approve capabilities from sources you trust; a connected
   server runs with your permissions.
-- WhatsApp inbound is allowlisted to numbers you set. Keep that list tight.
+- WhatsApp inbound is allowlisted to numbers you set — in the bridge *and* re-checked by
+  the app. Keep that list tight.
 - Secrets live only in the gitignored `.env`; `config.json`, `.env`, credential files, the
-  WhatsApp session, and your vault are all gitignored and never committed.
+  WhatsApp session, Google tokens, and your vault are all gitignored and never committed.
 
 ## Privacy
 
@@ -197,12 +270,12 @@ Atlas runs with **your** user permissions. Be deliberate:
 ## Layout
 
 ```
-setup.py             one-command installer (venv, deps, config, optional WhatsApp)
+setup.py             one-command installer (venv, deps, config, WhatsApp QR, Drive sign-in)
 jarvis/              the app: config, BM25 memory, failover LLM router, agent + tool loop,
                      MCP client + server, attachments, voice, Drive sync, FastAPI + chat UI
 os_tools_server.py   bundled MCP server: files + PowerShell
-connectors/          example MCP servers (enable + add credentials as needed)
-whatsapp-bridge/     Node/Baileys WhatsApp bridge (optional)
+connectors/          bundled MCP servers (see the Connectors table)
+whatsapp-bridge/     Node/Baileys WhatsApp bridge, auto-started once linked
 vault-template/      starter notes copied into a new vault
 test_jarvis.py       offline tests:  python test_jarvis.py
 test_router.py       failover/key-pool tests:  python test_router.py

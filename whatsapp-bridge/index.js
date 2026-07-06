@@ -9,6 +9,9 @@ import { Boom } from '@hapi/boom';
 import express from 'express';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as messageStore from './message-store.js';
 import {
     toJid,
@@ -25,6 +28,16 @@ import {
     waitForPrivacyToken,
     syncPrivacyTokenFromPhone,
 } from './tc-token.js';
+
+// Load .env (written by setup.py) before reading process.env — without this the
+// allowlist and Jarvis URL were silently ignored. Real env vars still win.
+try {
+    const envFile = path.join(path.dirname(fileURLToPath(import.meta.url)), '.env');
+    for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
+        const m = line.match(/^\s*([\w.]+)\s*=\s*(.*?)\s*$/);
+        if (m && !(m[1] in process.env)) process.env[m[1]] = m[2];
+    }
+} catch { /* no .env yet — defaults apply */ }
 
 const app = express();
 app.use(express.json());
@@ -166,7 +179,8 @@ async function replyViaJarvis(sock, record, msg) {
         const res = await fetch(`${JARVIS_URL}/api/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, attachments }),
+            // `from` lets Jarvis apply its own allowlist too (defense in depth)
+            body: JSON.stringify({ message, attachments, from: record.phoneJid ?? record.jid }),
             signal: AbortSignal.timeout(180_000),  // media + LLM can be slower than plain text
         });
         const { reply } = await res.json();

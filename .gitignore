@@ -27,6 +27,7 @@ whatsapp-bridge/auth_info_*/
 whatsapp-bridge/*-state.json
 whatsapp-bridge/messages.jsonl
 whatsapp-bridge/package-lock.json
+whatsapp-bridge/*.log
 
 # OS
 Thumbs.db

@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node launcher.js",
-    "start:bridge-only": "node --use-system-ca index.js",
+    "start:bridge-only": "node index.js",
     "start:email-only": "python email-notifier.py"
   },
   "dependencies": {
