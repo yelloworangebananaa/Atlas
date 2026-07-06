@@ -1,0 +1,19 @@
+{
+  "name": "whatsapp-bridge",
+  "version": "1.0.0",
+  "description": "WhatsApp MCP Bridge using Baileys",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node launcher.js",
+    "start:bridge-only": "node --use-system-ca index.js",
+    "start:email-only": "python email-notifier.py"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "express": "^5.2.1",
+    "pino": "^8.0.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

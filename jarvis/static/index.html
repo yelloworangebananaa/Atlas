@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #000; color: #c9d4e3; font: 15px/1.5 system-ui, sans-serif;
+         height: 100vh; display: flex; flex-direction: column; }
+  header { padding: 12px 20px; background: #0d0d12; border-bottom: 1px solid #1c1f26;
+           font-weight: 600; letter-spacing: 3px; color: #4a9de8; }
+  #log { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 72ch; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; }
+  .you { align-self: flex-end; background: #16283d; }
+  .jarvis { align-self: flex-start; background: #101318; border: 1px solid #1c1f26; }
+  .msg.thinking { color: #7a8699; font-style: italic; }
+  form { display: flex; gap: 8px; padding: 14px 20px; background: #0d0d12; border-top: 1px solid #1c1f26; }
+  input, select { background: #101318; border: 1px solid #252a33; border-radius: 8px;
+          color: inherit; padding: 10px 14px; font: inherit; outline: none; }
+  input { flex: 1; }
+  input:focus, select:focus { border-color: #4a9de8; }
+  button { background: #4a9de8; color: #fff; border: 0; border-radius: 8px;
+           padding: 0 18px; font: inherit; font-weight: 600; cursor: pointer; }
+  button:hover { background: #3a8dd8; }
+  details { background: #0d0d12; border-bottom: 1px solid #1c1f26; padding: 8px 20px; font-size: 13px; }
+  summary { cursor: pointer; color: #7a8699; }
+  details input, details select { padding: 5px 10px; font-size: 13px; }
+  details button { padding: 4px 12px; font-size: 13px; }
+
+  #orb { position: fixed; z-index: 5; cursor: grab; touch-action: none; }
+  #orb:active { cursor: grabbing; }
+
+  #clist { list-style: none; padding: 8px 0 0; }
+  #clist li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #3a4250; flex: none; }
+  .dot.on { background: #34c98e; }
+  .cname { flex: 1; }
+  .ctrans { color: #7a8699; }
+  .cx { background: none; color: #7a8699; padding: 0 6px; font-weight: 400; }
+  .cx:hover { background: none; color: #e05252; }
+  #cform { display: flex; gap: 6px; padding: 8px 0 4px; border: 0; background: none; }
+  .srow { display: flex; gap: 8px; align-items: center; padding: 4px 0; flex-wrap: wrap; }
+  .srow > label { width: 84px; color: #7a8699; flex: none; }
+  .srow input, .srow select { flex: 1; }
+  .chip { background: #16283d; color: #4a9de8; border: 1px solid #252a33; }
+  .chip:hover { background: #1d3552; }
+  .chip .rm { color: #7a8699; margin-left: 6px; }
+  .chip .rm:hover { color: #e05252; }
+  #smsg { color: #34c98e; }
+
+  #hlist { list-style: none; padding: 8px 0 0; }
+  #hlist li { border: 1px solid #252a33; border-radius: 8px; padding: 8px; margin-bottom: 8px; background: #0d0d12; }
+  #hlist li.active { border-color: #34c98e; box-shadow: 0 0 0 1px #34c98e33; }
+  .htier-h { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .hgrip { cursor: grab; color: #7a8699; padding: 0 2px; }
+  .hkeys { margin: 6px 0 0 16px; }
+  .hkey { display: flex; gap: 6px; align-items: center; padding: 2px 0; }
+  #hmsg { color: #34c98e; margin-left: 8px; }
+  .hbtns { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-top: 6px; }
+  .hpreset { background: #16283d; }
+
+  #atts { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 20px; }
+  #atts:not(:empty) { padding: 8px 20px 0; }
+  .attchip { background: #16283d; color: #4a9de8; border: 1px solid #252a33; border-radius: 8px;
+             padding: 3px 8px; font-size: 12px; }
+  #clip { display: flex; align-items: center; padding: 0 8px; font-size: 20px; cursor: pointer; user-select: none; }
+  body.drag { outline: 2px dashed #4a9de8; outline-offset: -8px; }
+</style>
+</head>
+<body>
+<header>JARVIS</header>
+<details id="spanel"><summary>Settings</summary>
+  <div class="srow"><label>Provider</label><span id="chips" style="display:flex;gap:6px;flex-wrap:wrap"></span></div>
+  <div class="srow"><label></label>
+    <input id="pname" placeholder="provider name" autocomplete="off" style="flex:none;width:130px">
+    <input id="purl" placeholder="https://host/v1" autocomplete="off">
+    <input id="pkey" type="password" placeholder="API key (optional)" autocomplete="off" style="flex:none;width:160px">
+    <button type="button" id="padd">Add provider</button>
+  </div>
+  <div class="srow"><label>Base URL</label><input id="sbase" autocomplete="off"></div>
+  <div class="srow"><label>Model</label>
+    <select id="smodel"></select>
+    <input id="smodelx" autocomplete="off" placeholder="model id" style="display:none">
+  </div>
+  <div class="srow" id="skeyrow"><label>API key</label><input id="skey" type="password" autocomplete="off"></div>
+  <div class="srow"><label>Voice</label><select id="svoice" style="flex:1"></select></div>
+  <div class="srow"><label>Rate</label><input id="srate" type="number" min="80" max="400" style="flex:none;width:80px">
+    <label style="width:auto">Pause ends turn (s)</label>
+    <input id="ssil" type="number" min="0.5" max="10" step="0.1" style="flex:none;width:80px">
+    <label style="width:auto;display:flex;gap:6px;align-items:center"><input id="svon" type="checkbox" style="flex:none">voice enabled</label>
+  </div>
+  <div class="srow"><label></label><button type="button" id="ssave">Save</button><span id="smsg"></span></div>
+</details>
+<details id="cpanel"><summary>Connectors</summary>
+  <ul id="clist"></ul>
+  <form id="cform">
+    <input id="cn" placeholder="name" autocomplete="off">
+    <input id="cu" placeholder="http://host/mcp (streamable-http URL)" autocomplete="off">
+    <button>Add</button>
+  </form>
+</details>
+<details id="hpanel"><summary>Model Hierarchy</summary>
+  <ul id="hlist"></ul>
+  <div class="hbtns">
+    <button type="button" class="hpreset" data-p="Ollama">+ Ollama</button>
+    <button type="button" class="hpreset" data-p="LM Studio">+ LM Studio</button>
+    <button type="button" class="hpreset" data-p="NVIDIA">+ NVIDIA</button>
+    <button type="button" class="hpreset" data-p="">+ Custom</button>
+    <button type="button" id="hsave">Save hierarchy</button>
+    <span id="hmsg"></span>
+  </div>
+</details>
+<canvas id="orb" title="idle"></canvas>
+<div id="log"></div>
+<div id="atts"></div>
+<form id="f">
+  <label id="clip" title="attach image, PDF, or text file">📎<input id="file" type="file" multiple hidden></label>
+  <input id="box" placeholder="Ask Jarvis… (or say 'hey jarvis', or drop a file)" autocomplete="off" autofocus>
+  <button>Send</button>
+</form>
+<script>
+const $ = (id) => document.getElementById(id);
+const log = $("log"), box = $("box");
+
+/* ---- particle-sphere orb: ~250 dots on a fibonacci sphere, one canvas, no libs ---- */
+const canvas = $("orb"), ctx = canvas.getContext("2d");
+const DPR = window.devicePixelRatio || 1, CSS = 230;
+canvas.width = canvas.height = CSS * DPR;
+canvas.style.width = canvas.style.height = CSS + "px";
+
+/* draggable, position remembered across refreshes */
+const clampX = (v) => Math.min(Math.max(0, v), innerWidth - CSS) + "px";
+const clampY = (v) => Math.min(Math.max(0, v), innerHeight - CSS) + "px";
+const savedPos = JSON.parse(localStorage.getItem("orbPos") || "null");
+canvas.style.left = clampX(savedPos ? savedPos[0] : (innerWidth - CSS) / 2);
+canvas.style.top = clampY(savedPos ? savedPos[1] : 52);
+let drag = null;
+canvas.onpointerdown = (e) => {
+  drag = [e.clientX - canvas.offsetLeft, e.clientY - canvas.offsetTop];
+  canvas.setPointerCapture(e.pointerId);
+};
+canvas.onpointermove = (e) => {
+  if (!drag) return;
+  canvas.style.left = clampX(e.clientX - drag[0]);
+  canvas.style.top = clampY(e.clientY - drag[1]);
+};
+canvas.onpointerup = canvas.onpointercancel = () => {
+  if (drag) localStorage.setItem("orbPos", JSON.stringify([canvas.offsetLeft, canvas.offsetTop]));
+  drag = null;
+};
+const N = 250, pts = [];
+for (let i = 0; i < N; i++) {
+  const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963229728653;
+  pts.push({ x: Math.cos(th) * r, y, z: Math.sin(th) * r,
+             s: 0.6 + ((i * 37) % 100) / 90,        // varying dot sizes
+             a: 0.35 + ((i * 53) % 100) / 150 });    // varying base opacity
+}
+// per-state look: rotation speed, colour, brightness, radius pulse, flicker
+const LOOK = {
+  idle:      { sp: 0.004, rgb: [140, 185, 235], br: 0.6,  pulse: 0, flick: 0 },
+  listening: { sp: 0.007, rgb: [80, 160, 255],  br: 1.0,  pulse: 1, flick: 0 },
+  thinking:  { sp: 0.022, rgb: [110, 140, 250], br: 0.85, pulse: 0, flick: 0 },
+  acting:    { sp: 0.012, rgb: [28, 190, 178],  br: 1.0,  pulse: 0, flick: 1 },
+};
+let cur = { sp: 0.004, rgb: [140, 185, 235], br: 0.6, pulse: 0, flick: 0 };
+let target = LOOK.idle, angle = 0;
+function setOrb(s) { target = LOOK[s] || LOOK.idle; canvas.title = s; }
+function draw(t) {
+  requestAnimationFrame(draw);
+  if (document.hidden) return; // rAF throttles hidden tabs anyway; belt for battery
+  cur.sp += (target.sp - cur.sp) * 0.06;
+  cur.br += (target.br - cur.br) * 0.08;
+  cur.pulse += (target.pulse - cur.pulse) * 0.08;
+  cur.flick += (target.flick - cur.flick) * 0.2;
+  for (let k = 0; k < 3; k++) cur.rgb[k] += (target.rgb[k] - cur.rgb[k]) * 0.08;
+  angle += cur.sp;
+  const c = canvas.width / 2;
+  const R = (CSS / 2 - 14) * DPR * (1 + cur.pulse * 0.09 * Math.sin(t * 0.004));
+  const hue = target === LOOK.thinking ? 25 * Math.sin(t * 0.003) : 0; // slight shift while thinking
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const ca = Math.cos(angle), sa = Math.sin(angle);
+  for (let i = 0; i < N; i++) {
+    const p = pts[i];
+    // tiny per-dot jitter keeps it airy instead of rigid
+    const jx = Math.sin(t * 0.0011 + i * 1.7) * 0.02, jy = Math.cos(t * 0.0013 + i * 2.3) * 0.02;
+    const x = (p.x + jx) * ca + p.z * sa, z = -(p.x + jx) * sa + p.z * ca;
+    const depth = z * 0.5 + 0.75; // nearer dots larger
+    let alpha = p.a * cur.br * (z * 0.45 + 0.6); // nearer dots more opaque
+    if (cur.flick > 0.05) alpha *= 1 - cur.flick * 0.5 * (0.5 + 0.5 * Math.sin(t * 0.03 + i * 5.1));
+    alpha = Math.max(0, Math.min(1, alpha));
+    const px = c + x * R, py = c + (p.y + jy) * R, pr = p.s * depth * 1.7 * DPR;
+    const col = `${cur.rgb[0] | 0},${(cur.rgb[1] + hue) | 0},${cur.rgb[2] | 0}`;
+    ctx.beginPath(); // soft bloom under the crisp dot — glow without shadowBlur's perf cost
+    ctx.arc(px, py, pr * 3.4, 0, 6.2832);
+    ctx.fillStyle = `rgba(${col},${alpha * 0.25})`;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(px, py, pr, 0, 6.2832);
+    ctx.fillStyle = `rgba(${col},${alpha})`;
+    ctx.fill();
+  }
+}
+requestAnimationFrame(draw);
+
+/* ---- state poll ---- */
+let inFlight = false;
+setInterval(async () => {
+  try {
+    const s = (await (await fetch("/api/state")).json()).state;
+    setOrb(s !== "idle" ? s : (inFlight ? "thinking" : "idle"));
+  } catch {}
+}, 500); // ponytail: polling, not SSE — 2 req/s on localhost is free
+
+/* ---- chat ---- */
+function add(cls, text) {
+  const d = document.createElement("div");
+  d.className = "msg " + cls;
+  d.textContent = text;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+  return d;
+}
+/* ---- attachments (§1): upload button + drag-drop, sent as base64 to /api/chat ---- */
+let attFiles = [];
+const fileToB64 = (f) => new Promise((res) => {
+  const r = new FileReader(); r.onload = () => res(r.result.split(",")[1]); r.readAsDataURL(f);
+});
+function renderAtts() {
+  const a = $("atts"); a.innerHTML = "";
+  attFiles.forEach((f, i) => {
+    const c = document.createElement("span"); c.className = "attchip"; c.textContent = f.name;
+    const x = document.createElement("span"); x.textContent = " ✕"; x.style.cursor = "pointer";
+    x.onclick = () => { attFiles.splice(i, 1); renderAtts(); };
+    c.append(x); a.append(c);
+  });
+}
+$("file").onchange = (e) => { attFiles.push(...e.target.files); e.target.value = ""; renderAtts(); };
+["dragenter", "dragover"].forEach((ev) => document.addEventListener(ev, (e) => {
+  e.preventDefault(); if (e.dataTransfer.types.includes("Files")) document.body.classList.add("drag");
+}));
+["dragleave", "drop"].forEach((ev) => document.addEventListener(ev, (e) => {
+  if (ev === "drop" || e.relatedTarget === null) document.body.classList.remove("drag");
+}));
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length) { attFiles.push(...e.dataTransfer.files); renderAtts(); }
+});
+
+$("f").onsubmit = async (e) => {
+  e.preventDefault();
+  const text = box.value.trim();
+  if (!text && !attFiles.length) return;
+  box.value = "";
+  const atts = await Promise.all(attFiles.map(async (f) =>
+    ({ name: f.name, mime: f.type, data: await fileToB64(f) })));
+  add("you", (text ? text + " " : "") + (atts.length ? `📎${atts.length}` : "") || "📎");
+  attFiles = []; renderAtts();
+  const wait = add("jarvis thinking", "thinking…");
+  inFlight = true;
+  setOrb("thinking");
+  try {
+    const r = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, attachments: atts }),
+    });
+    if (!r.ok) throw new Error("server returned " + r.status); // belt: envelope is 200-JSON
+    const data = await r.json();
+    wait.textContent = data.reply || "(no reply)";
+  } catch (err) {
+    wait.textContent = "Error: " + err.message;
+  }
+  inFlight = false;
+  wait.className = "msg jarvis";
+};
+
+/* ---- settings ---- */
+const PRESETS = [
+  { name: "Ollama", base_url: "http://127.0.0.1:11434/v1", key_env: "JARVIS_LLM_API_KEY" },
+  { name: "LM Studio", base_url: "http://127.0.0.1:1234/v1", key_env: "JARVIS_LLM_API_KEY" },
+  { name: "build.nvidia.com", base_url: "https://integrate.api.nvidia.com/v1", key_env: "JARVIS_LLM_API_KEY" },
+];
+function modelValue() {
+  return ($("smodel").style.display === "none" ? $("smodelx").value : $("smodel").value).trim();
+}
+let keyEnv = "JARVIS_LLM_API_KEY";
+function renderChips(providers) {
+  const wrap = $("chips");
+  wrap.innerHTML = "";
+  for (const p of [...PRESETS, ...providers]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip";
+    b.textContent = p.name;
+    b.onclick = () => {
+      $("sbase").value = p.base_url;
+      keyEnv = p.key_env;
+      keyVis();
+      loadModels();
+    };
+    if (p.key_env !== "JARVIS_LLM_API_KEY") { // custom provider: removable
+      const rm = document.createElement("span");
+      rm.className = "rm";
+      rm.textContent = "✕";
+      rm.title = "remove provider";
+      rm.onclick = async (e) => {
+        e.stopPropagation();
+        await fetch(`/api/providers/${encodeURIComponent(p.name)}`, { method: "DELETE" });
+        loadSettings();
+      };
+      b.appendChild(rm);
+    }
+    wrap.appendChild(b);
+  }
+}
+async function loadModels(current) {
+  const sel = $("smodel"), txt = $("smodelx");
+  let models = [];
+  try {
+    models = await (await fetch("/api/models?base_url=" + encodeURIComponent($("sbase").value)
+                                + "&key_env=" + encodeURIComponent(keyEnv))).json();
+  } catch {}
+  if (models.length) { // real dropdown: the typo class dies here
+    sel.innerHTML = "";
+    for (const m of models) sel.append(new Option(m, m));
+    if (current && !models.includes(current)) sel.append(new Option(current + " (saved)", current));
+    sel.value = current || models[0];
+    sel.style.display = ""; txt.style.display = "none";
+  } else { // endpoint down or listless: free-text fallback
+    txt.value = current || "";
+    sel.style.display = "none"; txt.style.display = "";
+  }
+}
+async function loadSettings() {
+  const s = await (await fetch("/api/settings")).json();
+  $("sbase").value = s.llm_base_url;
+  $("srate").value = s.tts_rate;
+  $("ssil").value = s.silence_seconds;
+  $("svon").checked = s.voice_enabled;
+  $("skey").value = "";
+  $("skey").placeholder = s.api_key_set ? "saved — leave blank to keep" : "";
+  keyEnv = s.llm_key_env || "JARVIS_LLM_API_KEY";
+  renderChips(s.providers || []);
+  keyVis();
+  loadModels(s.llm_model);
+  const sel = $("svoice");
+  sel.innerHTML = "";
+  sel.append(new Option("(default)", ""));
+  for (const v of await (await fetch("/api/voices")).json()) sel.append(new Option(v.name, v.id));
+  sel.value = s.tts_voice || "";
+  if (sel.selectedIndex < 0) sel.value = "";
+}
+function keyVis() {
+  $("skeyrow").style.display = /127\.0\.0\.1|localhost/.test($("sbase").value) ? "none" : "flex";
+}
+$("sbase").oninput = keyVis;
+$("sbase").onchange = () => loadModels(modelValue());
+$("spanel").addEventListener("toggle", (e) => { if (e.target.open) loadSettings(); });
+$("padd").onclick = async () => {
+  const body = { name: $("pname").value.trim(), url: $("purl").value.trim(), api_key: $("pkey").value.trim() };
+  if (!body.name || !body.url) return;
+  const r = await fetch("/api/providers", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  if (r.ok) { $("pname").value = $("purl").value = $("pkey").value = ""; loadSettings(); }
+  else alert((await r.json()).detail);
+};
+$("ssave").onclick = async () => {
+  const body = {
+    llm_base_url: $("sbase").value.trim(),
+    llm_model: modelValue(),
+    llm_key_env: keyEnv,
+    tts_voice: $("svoice").value || null,
+    tts_rate: +$("srate").value || 180,
+    silence_seconds: +$("ssil").value || 2.0,
+    voice_enabled: $("svon").checked,
+  };
+  if ($("skey").value.trim()) body.api_key = $("skey").value.trim();
+  const r = await fetch("/api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  $("smsg").textContent = r.ok ? "saved" : "error";
+  setTimeout(() => ($("smsg").textContent = ""), 1500);
+  if (r.ok) loadSettings();
+};
+
+/* ---- connectors ---- */
+const clist = $("clist");
+async function loadConnectors(resp) {
+  const list = resp || await (await fetch("/api/connectors")).json();
+  clist.innerHTML = "";
+  for (const c of list) {
+    const li = document.createElement("li");
+    const dot = document.createElement("span");
+    dot.className = "dot" + (c.connected ? " on" : "");
+    dot.title = c.connected ? "connected" : "not connected";
+    const name = document.createElement("span");
+    name.className = "cname";
+    name.textContent = c.name;
+    const trans = document.createElement("span");
+    trans.className = "ctrans";
+    trans.textContent = c.transport;
+    const en = document.createElement("input");
+    en.type = "checkbox";
+    en.checked = c.enabled;
+    en.title = "enabled";
+    en.style.flex = "none";
+    en.onchange = async () =>
+      loadConnectors(await (await fetch(`/api/connectors/${encodeURIComponent(c.name)}/toggle`, { method: "POST" })).json());
+    const x = document.createElement("button");
+    x.className = "cx";
+    x.textContent = "✕";
+    x.title = "remove";
+    x.onclick = async (e) => {
+      e.preventDefault();
+      loadConnectors(await (await fetch(`/api/connectors/${encodeURIComponent(c.name)}`, { method: "DELETE" })).json());
+    };
+    li.append(dot, name, trans, en, x);
+    clist.appendChild(li);
+  }
+}
+$("cpanel").addEventListener("toggle", (e) => { if (e.target.open) loadConnectors(); });
+$("cform").onsubmit = async (e) => {
+  e.preventDefault();
+  const name = $("cn").value.trim();
+  const url = $("cu").value.trim();
+  if (!name || !url) return;
+  const r = await fetch("/api/connectors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, url }),
+  });
+  if (r.ok) { $("cn").value = ""; $("cu").value = ""; loadConnectors(await r.json()); }
+  else alert((await r.json()).detail);
+};
+
+/* ---- model hierarchy (§2 failover chain / §3 key pools), native drag reorder ---- */
+let hchain = [], hactive = null, hstatus = {};
+const hlist = $("hlist");
+async function loadHierarchy() {
+  const h = await (await fetch("/api/hierarchy")).json();
+  hchain = h.chain || []; hactive = h.active; hstatus = h.key_status || {};
+  renderHierarchy();
+}
+async function saveHierarchy() {
+  const h = await (await fetch("/api/hierarchy", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chain: hchain }),
+  })).json();
+  hactive = h.active; hstatus = h.key_status || {};
+  $("hmsg").textContent = "saved"; setTimeout(() => ($("hmsg").textContent = ""), 1200);
+  renderHierarchy();
+}
+function renderHierarchy() {
+  hlist.innerHTML = "";
+  hchain.forEach((t, i) => {
+    const li = document.createElement("li");
+    li.draggable = true;
+    if (t.name === hactive) li.className = "active";
+    li.ondragstart = (e) => e.dataTransfer.setData("i", i);
+    li.ondragover = (e) => e.preventDefault();
+    li.ondrop = (e) => { e.preventDefault(); const from = +e.dataTransfer.getData("i");
+      if (from === i) return; const [m] = hchain.splice(from, 1); hchain.splice(i, 0, m); renderHierarchy(); };
+    const head = document.createElement("div"); head.className = "htier-h";
+    const grip = document.createElement("span"); grip.className = "hgrip"; grip.textContent = "⠿";
+    grip.title = t.name === hactive ? "active tier — drag to reorder" : "drag to reorder";
+    const mk = (ph, key, flex) => { const inp = document.createElement("input");
+      inp.placeholder = ph; inp.value = t[key] || ""; inp.style.flex = flex;
+      inp.oninput = () => (t[key] = inp.value); return inp; };
+    head.append(grip, mk("name", "name", "0 0 84px"), mk("https://host/v1", "base_url", "1 1 130px"),
+                mk("model id", "model", "0 0 120px"));
+    const rot = document.createElement("select"); rot.style.flex = "0 0 108px";
+    ["fill_first", "round_robin", "least_used", "random"].forEach((r) => rot.append(new Option(r, r)));
+    rot.value = t.rotation || "fill_first"; rot.onchange = () => (t.rotation = rot.value);
+    const vis = document.createElement("label"); vis.style.cssText = "width:auto;display:flex;gap:4px;align-items:center";
+    const vc = document.createElement("input"); vc.type = "checkbox"; vc.checked = !!t.vision; vc.style.flex = "none";
+    vc.onchange = () => (t.vision = vc.checked); vis.append(vc, document.createTextNode("vision"));
+    const del = document.createElement("button"); del.className = "cx"; del.textContent = "✕"; del.title = "remove tier";
+    del.onclick = () => { hchain.splice(i, 1); renderHierarchy(); };
+    head.append(rot, vis, del); li.append(head);
+    const keys = document.createElement("div"); keys.className = "hkeys";
+    (t.key_envs || []).forEach((env, ki) => {
+      const row = document.createElement("div"); row.className = "hkey";
+      const st = hstatus[env] || {}; const dot = document.createElement("span");
+      dot.className = "dot" + (st.set && st.status === "healthy" ? " on" : "");
+      dot.title = !st.set ? "no key set" : st.status; // healthy / cooling
+      const nm = document.createElement("span"); nm.className = "cname"; nm.textContent = env;
+      const x = document.createElement("button"); x.className = "cx"; x.textContent = "✕"; x.title = "remove key";
+      x.onclick = async () => { await fetch("/api/hierarchy/key/" + encodeURIComponent(env), { method: "DELETE" });
+        t.key_envs.splice(ki, 1); await saveHierarchy(); };
+      row.append(dot, nm, x); keys.append(row);
+    });
+    const addr = document.createElement("div"); addr.className = "hkey";
+    const kv = document.createElement("input"); kv.type = "password"; kv.placeholder = "paste API key, then + key"; kv.style.flex = "1";
+    const kn = document.createElement("input"); kn.placeholder = "env name (optional)"; kn.style.flex = "0 0 140px";
+    const ka = document.createElement("button"); ka.type = "button"; ka.textContent = "+ key";
+    ka.onclick = async () => {
+      if (!kv.value.trim() && !kn.value.trim()) return;
+      t.key_envs = t.key_envs || [];
+      let name = kn.value.trim();
+      if (!name) {  // auto-name so you can just paste keys — no inventing env var names (multi-key made easy)
+        const base = "JARVIS_KEY_" + (t.name || "TIER").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        let n = t.key_envs.length + 1; name = `${base}_${n}`;
+        while (t.key_envs.includes(name)) name = `${base}_${++n}`;
+      }
+      if (!t.key_envs.includes(name)) t.key_envs.push(name);
+      await fetch("/api/hierarchy/key", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, value: kv.value.trim() }) });
+      kn.value = kv.value = ""; await saveHierarchy();
+    };
+    addr.append(kv, kn, ka); keys.append(addr); li.append(keys);
+    hlist.append(li);
+  });
+}
+const TIER_PRESETS = {
+  "Ollama": { base_url: "http://127.0.0.1:11434/v1", vision: false },
+  "LM Studio": { base_url: "http://127.0.0.1:1234/v1", vision: false },
+  "NVIDIA": { base_url: "https://integrate.api.nvidia.com/v1", vision: true },
+};
+function addTier(preset) {
+  const p = TIER_PRESETS[preset] || { base_url: "", vision: false };
+  hchain.push({ name: preset || ("tier" + (hchain.length + 1)), base_url: p.base_url,
+    model: "", vision: !!p.vision, key_envs: [], rotation: "fill_first" });
+  renderHierarchy();
+}
+document.querySelectorAll(".hpreset").forEach((b) => (b.onclick = () => addTier(b.dataset.p)));
+$("hsave").onclick = saveHierarchy;
+$("hpanel").addEventListener("toggle", (e) => { if (e.target.open) loadHierarchy(); });
+</script>
+</body>
+</html>

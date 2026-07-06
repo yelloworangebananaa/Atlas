@@ -1,0 +1,33 @@
+# secrets / machine-local — never commit
+config.json
+.env
+token*.json
+*creds*.json
+*credential*.json
+
+# python runtime
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# jarvis runtime artifacts (generated locally)
+schedule.json
+jarvis_actions.log
+drivesync_state.json
+
+# your memory vault — created by setup from vault-template; never commit personal notes
+JarvisVault/
+JarvisVault-test/
+
+# whatsapp-bridge: session creds, secrets, message history, build output
+whatsapp-bridge/.env
+whatsapp-bridge/node_modules/
+whatsapp-bridge/auth_info_*/
+whatsapp-bridge/*-state.json
+whatsapp-bridge/messages.jsonl
+whatsapp-bridge/package-lock.json
+
+# OS
+Thumbs.db
+.DS_Store

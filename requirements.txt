@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+requests
+mcp
+faster-whisper
+openwakeword
+sounddevice
+numpy
+pyttsx3
+pypdf
