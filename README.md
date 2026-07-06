@@ -41,6 +41,14 @@ git clone <this repo>
 cd Deploy_jarvis
 python setup.py        # creates a venv, installs deps, asks for your vault + model
 .venv\Scripts\python -m jarvis      # start (Linux/macOS: .venv/bin/python -m jarvis)
+
+if that does not work:
+
+cd "your path"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m jarvis setup
 ```
 
 `setup.py` is re-runnable. It creates a memory vault from `vault-template/`, detects your
