@@ -49,6 +49,11 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python -m jarvis setup
+
+After setup, run
+cd "your path" <- neglect if you are already in it
+.\.venv\Scripts\Activate.ps1
+python -m jarvis
 ```
 
 `setup.py` is re-runnable. It creates a memory vault from `vault-template/`, detects your
