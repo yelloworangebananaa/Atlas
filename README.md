@@ -1,6 +1,6 @@
-# Atlas
-<img width="400" height="400" alt="Atlas Logo" src="https://github.com/user-attachments/assets/3a8b9ba4-dd93-41f5-864e-71714fa9bc40" />
 
+<img width="400" height="400" alt="Atlas Logo" src="https://github.com/user-attachments/assets/3a8b9ba4-dd93-41f5-864e-71714fa9bc40" />
+# Atlas
 A local-first personal assistant with an **Obsidian vault as its memory**. Talk to it by
 voice or chat, from your desktop or WhatsApp. It remembers across sessions, survives a
 provider outage by failing over to the next model, reads the photos/PDFs/voice notes you
