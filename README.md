@@ -6,7 +6,7 @@ provider outage by failing over to the next model, reads the photos/PDFs/voice n
 send it, and **writes its own tools** when it needs a capability it doesn't have.
 
 Point it at whatever model you like — a local Ollama/LM Studio, or any OpenAI-compatible
-API. With a local model, nothing leaves your machine.
+API. With a local model, nothing leaves your machine. Note: Atlas was previously called Jarvis, which is due to it being a continuation of my Jarvis Repo, but now with a better name, so some files might still say Jarvis
 
 ## Features
 
