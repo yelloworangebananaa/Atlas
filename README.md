@@ -42,8 +42,8 @@ API. With a local model, nothing leaves your machine.
 ## Quick start
 
 ```bash
-git clone <this repo>
-cd Deploy_jarvis
+git clone https://github.com/yelloworangebananaa/Atlas.git
+cd Atlas
 python setup.py                     # walks you through everything (see below)
 .venv\Scripts\python -m jarvis      # start (Linux/macOS: .venv/bin/python -m jarvis)
 ```
@@ -52,7 +52,7 @@ python setup.py                     # walks you through everything (see below)
 <summary>Manual install (if <code>python setup.py</code> fails on your machine)</summary>
 
 ```powershell
-cd Deploy_jarvis
+cd Atlas
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1        # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
