@@ -1,6 +1,6 @@
 # Example note
 
-This is what a memory note looks like. Try asking Jarvis: "what's my wifi password hint?"
+This is what a memory note looks like. Try asking Atlas: "what's my wifi password hint?"
 
 - Wifi password hint: the name of my first pet, then the year I moved.
 - Coffee order: flat white, oat milk, extra shot.

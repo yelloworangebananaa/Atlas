@@ -1,9 +1,9 @@
-"""One-command installer for Jarvis.
+"""One-command installer for Atlas.
 
     python setup.py            # full interactive install
     python setup.py --dry-run  # print the steps without changing anything
 
-Creates a local virtualenv, installs dependencies, runs Jarvis's own interactive
+Creates a local virtualenv, installs dependencies, runs Atlas's own interactive
 setup (memory vault + model backend), and optionally wires up the WhatsApp bridge.
 Re-runnable — run it again anytime to add WhatsApp later. Stdlib only."""
 import json
@@ -35,7 +35,7 @@ def ask(prompt, default=""):
 
 
 def main():
-    print("=== Jarvis installer ===")
+    print("=== Atlas installer ===")
     print("Prereqs: Python 3.11+, and (for WhatsApp) Node.js 18+.\n")
 
     # 1. virtualenv + dependencies
@@ -43,7 +43,7 @@ def main():
         run([sys.executable, "-m", "venv", VENV])
     run([VENV_PIP, "install", "-q", "-r", ROOT / "requirements.txt"])
 
-    # 2. core config (vault from vault-template + model backend + os-tools) — Jarvis's own setup
+    # 2. core config (vault from vault-template + model backend + os-tools) — Atlas's own setup
     print("\n-- core setup: memory vault + model backend --")
     run([VENV_PY, "-m", "jarvis", "setup"])
 
@@ -55,7 +55,7 @@ def main():
 
     run_cmd = ".venv\\Scripts\\python" if WIN else ".venv/bin/python"
     print("\n=== Done ===")
-    print(f"Start Jarvis:            {run_cmd} -m jarvis")
+    print(f"Start Atlas:             {run_cmd} -m jarvis")
     print("WhatsApp (if enabled):   cd whatsapp-bridge && npm start   (scan the QR once)")
 
 
@@ -66,7 +66,7 @@ def setup_whatsapp():
     wb = ROOT / "whatsapp-bridge"
     run(["npm", "install"], cwd=str(wb), shell=WIN)  # shell: Windows npm is npm.cmd
 
-    phone = ask("Your WhatsApp number(s) allowed to talk to Jarvis, comma-separated "
+    phone = ask("Your WhatsApp number(s) allowed to talk to Atlas, comma-separated "
                 "(digits only, e.g. 15551234567)", "")
     gmail = ask("Gmail address for the email->WhatsApp notifier (optional, blank to skip)", "")
     gpass = ask("Gmail App Password (https://myaccount.google.com/apppasswords)", "") if gmail else ""
