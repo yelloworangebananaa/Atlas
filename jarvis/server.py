@@ -12,7 +12,7 @@ from jarvis import agent, config, drivesync, mcp_client, memory, router, state, 
 from jarvis.audit import audit
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
-app = FastAPI(title="Jarvis")
+app = FastAPI(title="Atlas")
 STATIC = Path(__file__).parent / "static"
 
 

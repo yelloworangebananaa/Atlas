@@ -27,7 +27,7 @@ def _ask(prompt, default):
 
 
 def setup():
-    print("=== Jarvis setup ===")
+    print("=== Atlas setup ===")
     cfg = config.load()
 
     # Vault: any folder of .md files works; point Obsidian at it to browse.
@@ -116,7 +116,7 @@ def main():
     from jarvis import server
 
     url = f"http://127.0.0.1:{config.load()['port']}"
-    print(f"Jarvis at {url} — Ctrl+C to stop.")
+    print(f"Atlas at {url} — Ctrl+C to stop.")
     threading.Timer(1.5, webbrowser.open, args=(url,)).start()
     server.run()
 

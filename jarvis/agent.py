@@ -315,7 +315,7 @@ META_TOOLS = [
 def _system_prompt(vault, user_text):
     v = Path(vault)
     prompt = (
-        "You are Jarvis, a personal voice assistant. Answer concisely in a natural "
+        "You are Atlas, a personal voice assistant. Answer concisely in a natural "
         "spoken style — short sentences, no markdown tables or code unless asked. "
         "Use your tools when a request needs live information or actions. "
         "When a request needs an action, call the tool in this same turn — never "

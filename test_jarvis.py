@@ -37,7 +37,7 @@ def test_append_journal(tmp):
     day = datetime.now().strftime("%Y-%m-%d")
     content = (Path(tmp) / "Journal" / f"{day}.md").read_text(encoding="utf-8")
     assert content.startswith(f"# {day}\n")
-    assert "**You:** hello there" in content and "**Jarvis:** General Kenobi" in content
+    assert "**You:** hello there" in content and "**Atlas:** General Kenobi" in content
     memory.append_journal(tmp, "second", "reply")
     content = (Path(tmp) / "Journal" / f"{day}.md").read_text(encoding="utf-8")
     assert content.count("# " + day) == 1, "header written once"
@@ -427,6 +427,17 @@ def test_inbound_allowlist():
     assert server._inbound_allowed("123", []) is False, "empty allowlist blocks every external sender"
 
 
+def test_wake_split():
+    from jarvis.voice import _wake_split
+
+    assert _wake_split("Atlas, what's the time?", "atlas") == (True, "whats the time")
+    assert _wake_split("hey atlas play some music", "atlas") == (True, "play some music")
+    assert _wake_split("Atlas", "atlas") == (True, "")
+    assert _wake_split("please tell atlas later", "atlas") == (False, "")  # wake word must lead
+    assert _wake_split("", "atlas") == (False, "")
+    assert _wake_split("hey jarvis hello", "hey jarvis") == (True, "hello")  # multi-word wake works too
+
+
 def test_cron_forms():
     from jarvis import cron
 
@@ -502,4 +513,5 @@ if __name__ == "__main__":
     test_inbound_allowlist()
     test_cron_forms()
     test_delegate()
+    test_wake_split()
     print("ALL TESTS PASSED")

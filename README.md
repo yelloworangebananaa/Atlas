@@ -1,4 +1,4 @@
-# Jarvis
+# Atlas
 
 A local-first personal assistant with an **Obsidian vault as its memory**. Talk to it by
 voice or chat, from your desktop or WhatsApp. It remembers across sessions, survives a
@@ -10,11 +10,11 @@ API. With a local model, nothing leaves your machine.
 
 ## Features
 
-- 🎙️ **Local voice loop** — "hey jarvis", record, transcribe, answer out loud. Wake word
-  (openWakeWord) and speech-to-text (faster-whisper) run **on your machine**; only the
-  transcribed text goes to the model.
+- 🎙️ **Local voice loop** — "hey atlas", record, transcribe, answer out loud. The wake word
+  is fully customizable (spotted by faster-whisper, so it can be any word) and speech-to-text
+  runs **on your machine**; only the transcribed text goes to the model.
 - 🧠 **Obsidian-vault memory** — every conversation is journaled as Markdown; any note you
-  add becomes memory via BM25 retrieval. Jarvis writes durable facts, skills, and lessons
+  add becomes memory via BM25 retrieval. Atlas writes durable facts, skills, and lessons
   as notes and **auto-links each new note** to related ones (a real `[[wikilink]]` graph).
 - ♻️ **Self-improving** — after a correction or a failed tool call it reflects on the turn
   and saves what's worth remembering (with an optional approval gate).
@@ -22,15 +22,15 @@ API. With a local model, nothing leaves your machine.
   provider errors (timeout, 429, 5xx, bad response) it fails over to the next one mid-message
   and tells you it switched. Pool multiple API keys per provider with rotation + cooldowns.
 - 🖼️ **Multi-modal** — drop an image, PDF, or text file into chat (or send it over WhatsApp)
-  and Jarvis reads it: images to a vision model, PDFs to text, voice notes transcribed.
-- 💬 **WhatsApp** — text Jarvis from your phone; media works the same as in-app. Optional
+  and Atlas reads it: images to a vision model, PDFs to text, voice notes transcribed.
+- 💬 **WhatsApp** — text Atlas from your phone; media works the same as in-app. Optional
   email→WhatsApp notifier included.
 - 🗂️ **Google Drive sync (opt-in)** — two-way mirror a Drive `raw` folder with your vault.
 - 🛠️ **Builds its own tools** — see [Self-extending tools](#self-extending-tools). When no
-  tool fits, Jarvis writes a new MCP server, the app **starts and validates it** before
+  tool fits, Atlas writes a new MCP server, the app **starts and validates it** before
   enabling, and it can toggle it on itself. Same for scheduled jobs (validated cron).
 - 🧩 **MCP-native** — every capability is a [Model Context Protocol](https://modelcontextprotocol.io)
-  server; add any server by URL or command. Jarvis can even expose *itself* as an MCP server.
+  server; add any server by URL or command. Atlas can even expose *itself* as an MCP server.
 - 📓 **Full audit trail** — every tool call, connector change, scaffold, job, and model
   switch is one line in `jarvis_actions.log`.
 
@@ -55,14 +55,15 @@ model backend (or takes an API key), and can optionally wire up WhatsApp. Then
   [build.nvidia.com](https://build.nvidia.com) / any OpenAI-compatible endpoint.
 - **Node.js 18+** — only if you want the WhatsApp bridge.
 - **Obsidian** (optional) — to browse/edit the memory vault (it's just Markdown files).
-- A microphone for voice. No mic? Jarvis runs chat-only automatically.
+- A microphone for voice. No mic? Atlas runs chat-only automatically.
 
-First voice start downloads the wake-word + Whisper models (~80 MB, one time). For image
+First voice start downloads the Whisper speech model (~40 MB, one time). The wake word
+defaults to "atlas" (set `wake_word` in `config.json` to change it). For image
 understanding, add a vision-capable model as a tier in the Model Hierarchy (below).
 
 ## Voice & chat
 
-Say **"hey jarvis"**, wait for the beep, then speak — Jarvis records until you pause,
+Say **"hey atlas"**, wait for the beep, then speak — Atlas records until you pause,
 transcribes locally, and answers out loud. The chat UI at the printed URL is always
 available. The silence timer only starts once you've begun speaking, so mid-sentence
 pauses don't cut you off (tune **Pause ends turn** in Settings, default 2 s).
@@ -77,7 +78,7 @@ acting (teal flicker).
 - Every turn is appended to `Journal/YYYY-MM-DD.md`.
 - Retrieval is hand-rolled BM25 over paragraph chunks of every note — the relevant passages
   are pasted into each turn automatically.
-- Jarvis saves durable notes itself with a `save_note` tool: `memory` (a fact), `skill`
+- Atlas saves durable notes itself with a `save_note` tool: `memory` (a fact), `skill`
   (a reusable procedure it worked out), or `lesson` (a mistake + fix). Every note is
   **cross-linked** to related existing notes with `[[wikilinks]]`.
 - Turn on an **approval gate** (`vault_autosave_notes: false`) to review auto-written notes
@@ -86,7 +87,7 @@ acting (teal flicker).
 ## Model Hierarchy (failover + key pools)
 
 Open the **Model Hierarchy** panel and add tiers (Ollama / LM Studio / NVIDIA presets, or
-custom). Jarvis tries them in order; if one errors mid-message it fails over to the next,
+custom). Atlas tries them in order; if one errors mid-message it fails over to the next,
 prepends a "switched to …" notice, and (if WhatsApp is on) texts you. Within a tier, add
 multiple API keys — just paste each and hit **+ key** — and they rotate with cooldowns on
 429/402/401. Mark a tier **vision** so image messages route to a vision-capable model.
@@ -103,7 +104,7 @@ a short note so the turn still answers.
 ## WhatsApp
 
 Run `python setup.py` and choose to enable WhatsApp (needs Node.js). It `npm install`s the
-bridge, asks for the number(s) allowed to talk to Jarvis, and writes `whatsapp-bridge/.env`.
+bridge, asks for the number(s) allowed to talk to Atlas, and writes `whatsapp-bridge/.env`.
 Then:
 
 ```bash
@@ -111,14 +112,14 @@ cd whatsapp-bridge
 npm start        # scan the QR once with WhatsApp → Linked Devices
 ```
 
-Only numbers on your allowlist can drive Jarvis (an assistant with shell access must not
+Only numbers on your allowlist can drive Atlas (an assistant with shell access must not
 take orders from strangers). Inbound photos/PDFs/voice notes are handled exactly like an
 in-app upload. An optional email→WhatsApp notifier is included (`GMAIL_USER` +
 [App Password](https://myaccount.google.com/apppasswords) in `whatsapp-bridge/.env`).
 
 ## Google Drive sync (opt-in)
 
-If you use **Google Drive for Desktop**, Jarvis can two-way mirror a Drive `raw` folder
+If you use **Google Drive for Desktop**, Atlas can two-way mirror a Drive `raw` folder
 with your vault's `raw/` inbox — drop a file in Drive from your phone and it shows up in
 your memory (and vice-versa). Off by default; enable in `config.json`:
 
@@ -133,39 +134,39 @@ wipe your local files).
 ## Connectors (MCP)
 
 Every capability beyond chat and memory is an [MCP](https://modelcontextprotocol.io) server.
-The bundled **`os-tools`** server gives Jarvis full local file + PowerShell access. Manage
+The bundled **`os-tools`** server gives Atlas full local file + PowerShell access. Manage
 connectors in the **Connectors** panel (add by URL, toggle, remove) or in `config.json`
 under `mcp_servers`. Example connectors ship in `connectors/` (web-search, google-drive,
 whatsapp, comms-bridge, …) — most just need their own credentials via `.env` (see each
-file). Jarvis can also **expose itself** as an MCP server so another agent can drive it:
+file). Atlas can also **expose itself** as an MCP server so another agent can drive it:
 `python -m jarvis.mcp_server`.
 
 ### Self-extending tools
 
-This is the headline capability: **when no existing tool covers a need, Jarvis writes one.**
+This is the headline capability: **when no existing tool covers a need, Atlas writes one.**
 
-- **New MCP server** — Jarvis calls `create_tool_server(name, description, python_code)`. The
+- **New MCP server** — Atlas calls `create_tool_server(name, description, python_code)`. The
   app scaffolds `connectors/<name>/server.py`, then **actually starts it, completes the MCP
   handshake, and lists its tools** before reporting success (`mcp_client.probe`). If it won't
   start, it stays disabled and the failure is logged as a `lesson` in your vault so the same
-  mistake isn't repeated. Jarvis can then enable the connector itself (`set_connector`) and
+  mistake isn't repeated. Atlas can then enable the connector itself (`set_connector`) and
   use it in the same conversation.
-- **Scheduled jobs** — Jarvis proposes a job; the schedule is **validated and translated**
+- **Scheduled jobs** — Atlas proposes a job; the schedule is **validated and translated**
   (relative `30m`/`2h`, `every 2h`, 5-field cron, ISO timestamps, or raw schtasks) *before*
   saving, and it can install/list/run/pause/remove jobs itself. Bad schedules are rejected up
   front and logged.
-- **Sub-agents** — Jarvis can hand a self-contained subtask to a focused sub-agent
+- **Sub-agents** — Atlas can hand a self-contained subtask to a focused sub-agent
   (`delegate`) that shares its tools but its own scratch context.
 
 Every one of these actions is in `jarvis_actions.log`.
 
 ## Security & trust
 
-Jarvis runs with **your** user permissions. Be deliberate:
+Atlas runs with **your** user permissions. Be deliberate:
 
 - The `os-tools` connector is a full local shell (create/read/write/delete files, run
-  PowerShell). Jarvis can also enable its own connectors and schedule its own jobs. That's
-  powerful — only run Jarvis on a machine and account you're comfortable giving an assistant.
+  PowerShell). Atlas can also enable its own connectors and schedule its own jobs. That's
+  powerful — only run Atlas on a machine and account you're comfortable giving an assistant.
 - Only connect MCP servers and approve capabilities from sources you trust; a connected
   server runs with your permissions.
 - WhatsApp inbound is allowlisted to numbers you set. Keep that list tight.

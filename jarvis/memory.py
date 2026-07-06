@@ -100,7 +100,7 @@ def append_journal(vault, user_text, assistant_text, tool_notes=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"\n## {now:%H:%M}", f"**You:** {user_text}"]
     lines += [f"**Tool:** {n}" for n in tool_notes or []]
-    lines += [f"**Jarvis:** {assistant_text}", ""]
+    lines += [f"**Atlas:** {assistant_text}", ""]
     block = "\n".join(lines)
     if not path.exists():
         block = f"# {day}\n{block}"

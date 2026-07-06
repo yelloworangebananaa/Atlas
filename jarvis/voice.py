@@ -1,7 +1,7 @@
 """All-local voice loop: wake word -> record -> transcribe -> agent -> speak.
 
-PRIVACY INVARIANT: audio never leaves this machine. Wake detection (openwakeword)
-and speech-to-text (faster-whisper) run locally on CPU; only the transcribed TEXT
+PRIVACY INVARIANT: audio never leaves this machine. Wake detection and
+speech-to-text (faster-whisper) run locally on CPU; only the transcribed TEXT
 is sent to the LLM endpoint configured in config.json.
 """
 import logging
@@ -18,10 +18,9 @@ from pathlib import Path
 log = logging.getLogger("jarvis.voice")
 
 SAMPLE_RATE = 16000
-BLOCK = 1280  # openwakeword expects 80 ms frames at 16 kHz
+BLOCK = 1280  # 80 ms frames at 16 kHz
 BLOCK_SECONDS = BLOCK / SAMPLE_RATE
-WAKE_THRESHOLD = 0.5
-NO_SPEECH_ABORT_SECONDS = 6  # wake fired but user never spoke -> quietly resume listening
+NO_SPEECH_ABORT_SECONDS = 6  # utterance with no speech -> stop recording and resume listening
 
 active = False  # server /api/status reports this
 
@@ -32,7 +31,7 @@ def start(cfg):
 
 
 def _trust_os_certs():
-    """Model downloads (openwakeword, huggingface) use requests+certifi, which rejects
+    """Model downloads (faster-whisper via huggingface) use requests+certifi, which rejects
     antivirus/corporate TLS interception roots (e.g. Avast). Export the Windows cert
     store to a PEM so those first-run downloads verify. Audio/text privacy unaffected.
     # ponytail: process-wide env tweak, Windows only; drop when deps use OS trust natively
@@ -135,6 +134,23 @@ def _record_command(stream, np, cfg):
             return None
 
 
+_WAKE_FILLERS = ("hey", "hi", "ok", "okay", "yo", "hello")
+
+
+def _wake_split(text, wake_word):
+    """(matched, command) from a transcript. Matches the wake word at the start, optionally
+    after a filler ('hey atlas ...'), and returns the rest as the command. Case/punctuation
+    are ignored; apostrophes are dropped so "what's" stays one word."""
+    words = re.sub(r"[^a-z0-9 ]+", " ", (text or "").lower().replace("'", "")).split()
+    w = wake_word.lower().split()
+    n = len(w)
+    if words[:n] == w:
+        return True, " ".join(words[n:])
+    if len(words) > n and words[0] in _WAKE_FILLERS and words[1:1 + n] == w:
+        return True, " ".join(words[1 + n:])
+    return False, ""
+
+
 def _run(cfg):
     global active
     # Voice deps imported lazily HERE so the server and tests run without them.
@@ -144,11 +160,7 @@ def _run(cfg):
         import sounddevice as sd
         import winsound
         from faster_whisper import WhisperModel
-        import openwakeword
-        from openwakeword.model import Model
 
-        openwakeword.utils.download_models(["hey_jarvis"])  # no-op if already cached
-        wake = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
         whisper = WhisperModel(cfg["stt_model_size"], device="cpu", compute_type="int8")
         stream_kwargs = dict(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=BLOCK)
         if cfg["mic_device_index"] is not None:
@@ -159,50 +171,45 @@ def _run(cfg):
         log.warning("Voice disabled (%s) — running chat-only.", exc)
         return
 
-    from jarvis import agent, state
+    from jarvis import agent, config as _config, state
 
+    def transcribe(audio):
+        if audio is None:
+            return ""
+        segments, _ = whisper.transcribe(audio.astype(np.float32) / 32768.0, beam_size=1, language="en")
+        return " ".join(s.text.strip() for s in segments).strip()
+
+    wake_word = (cfg.get("wake_word") or "atlas").lower()
     active = True
-    log.info("Voice ready: say 'hey jarvis'.")
+    log.info("Voice ready: say '%s' (e.g. 'hey %s').", wake_word, wake_word)
+    # ponytail: whisper-transcript wake — transcribes each spoken utterance to spot the wake
+    # word, so ANY custom word works with no extra model or cloud key. Ceiling: heavier and a
+    # bit laggier than a dedicated wake model; upgrade to a trained openWakeWord model or
+    # Porcupine for an instant, cheap trigger if that ever matters.
     while True:
         try:
-            data, _ = stream.read(BLOCK)
-            frame = np.frombuffer(bytes(data), dtype=np.int16)
-            score = float(wake.predict(frame).get("hey_jarvis", 0.0))
-            if score < WAKE_THRESHOLD:
+            heard = transcribe(_record_command(stream, np, _config.load()))  # one utterance, or ""
+            matched, command = _wake_split(heard, wake_word)
+            if not matched:
                 continue
             state.set("listening")
             winsound.Beep(880, 150)
-            try:
-                from jarvis import config as _config
-
-                vcfg = _config.load()  # fresh: VAD knobs from Settings apply live
-                audio = _record_command(stream, np, vcfg)
-                text = ""
-                if audio is not None:
-                    segments, _ = whisper.transcribe(
-                        audio.astype(np.float32) / 32768.0, beam_size=1, language="en"
-                    )
-                    text = " ".join(s.text.strip() for s in segments).strip()
-            finally:
-                state.set("idle")  # handle() below drives thinking/acting itself
-            wake.reset()  # clear internal buffers so the command audio can't retrigger
-            if not text:
+            if not command:  # they said just the wake word -> take the next utterance as the command
+                command = transcribe(_record_command(stream, np, _config.load()))
+            state.set("idle")
+            if not command:
                 continue
-            log.info("Heard: %s", text)
-            reply = agent.handle(text)
-            # Suppress self-trigger: mic stream is stopped while we speak.
-            stream.stop()
+            log.info("Heard: %s", command)
+            reply = agent.handle(command)
+            stream.stop()  # mic off while we speak so the TTS can't retrigger the wake word
             _speak(reply)
             stream.start()
-            wake.reset()
         except Exception as exc:
             log.warning("Voice loop error: %s", exc)
-            # The user asked aloud — never answer with silence.
             try:
                 stream.stop()
-                _speak("Sorry — the model endpoint failed. Check the Jarvis settings.")
+                _speak("Sorry — the model endpoint failed. Check the Atlas settings.")
                 stream.start()
-                wake.reset()
             except Exception:
                 pass
             time.sleep(1)
