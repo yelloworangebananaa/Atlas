@@ -158,6 +158,21 @@ def _wake_split(text, wake_word):
     return False, ""
 
 
+def _load_wake_model(cfg):
+    """Load a custom openWakeWord acoustic model if config points at one (config
+    'wake_model_path'). Returns (model, key) for instant mid-word spotting, or None to fall
+    back to the whisper-transcript wake. Never raises."""
+    path = cfg.get("wake_model_path")
+    if not path or not Path(path).exists():
+        return None
+    try:
+        from openwakeword.model import Model
+        return Model(wakeword_models=[str(path)], inference_framework="onnx"), Path(path).stem
+    except Exception as exc:
+        log.warning("Custom wake model %s failed to load (%s) — using whisper wake.", path, exc)
+        return None
+
+
 def _run(cfg):
     global active
     # Voice deps imported lazily HERE so the server and tests run without them.
@@ -187,42 +202,62 @@ def _run(cfg):
                                          language="en", initial_prompt=prompt)
         return " ".join(s.text.strip() for s in segments).strip()
 
+    def serve(command):  # record already done -> run the command and speak the reply
+        if not command:
+            return
+        log.info("Heard: %s", command)
+        reply = agent.handle(command)
+        stream.stop()  # mic off while we speak so the TTS can't retrigger the wake word
+        _speak(reply)
+        stream.start()
+
     wake_word = (cfg.get("wake_word") or "atlas").lower()
-    wake_prompt = f"Hey {wake_word}."  # bias Whisper toward the wake word so it's heard right
+    loaded = _load_wake_model(cfg)  # (model, key) for instant acoustic spotting, or None
     active = True
-    log.info("Voice ready: say '%s' (e.g. 'hey %s').", wake_word, wake_word)
-    # ponytail: whisper-transcript wake — transcribes each utterance to spot the wake word, so
-    # ANY custom word works with no extra model/key. Tuned for latency: the wake utterance ends
-    # on a SHORT pause (wake_silence, ~0.6s) instead of the full command pause, and Whisper is
-    # biased toward the wake word. Ceiling: still a step slower than a dedicated acoustic model
-    # (openWakeWord/Porcupine) — switch to one for instant, always-on spotting.
+    if loaded:
+        log.info("Voice ready: instant '%s' wake (%s).", wake_word, cfg.get("wake_model_path"))
+    else:
+        log.info("Voice ready: say '%s' (e.g. 'hey %s').", wake_word, wake_word)
     while True:
         try:
-            base = _config.load()
-            wake_cfg = {**base, "silence_seconds": base.get("wake_silence", 0.6),
-                        "max_utterance_seconds": 6}
-            heard = transcribe(_record_command(stream, np, wake_cfg), prompt=wake_prompt)
-            matched, command = _wake_split(heard, wake_word)
-            if not matched:
-                continue
-            state.set("listening")
-            winsound.Beep(880, 150)
-            if not command:  # they said just the wake word -> take the next utterance as the command
-                command = transcribe(_record_command(stream, np, base))
-            state.set("idle")
-            if not command:
-                continue
-            log.info("Heard: %s", command)
-            reply = agent.handle(command)
-            stream.stop()  # mic off while we speak so the TTS can't retrigger the wake word
-            _speak(reply)
-            stream.start()
+            if loaded:
+                # Instant path: openWakeWord spots the word mid-utterance, THEN we record the
+                # command to its natural pause and transcribe it — exactly the classic flow.
+                oww, key = loaded
+                frame = np.frombuffer(bytes(stream.read(BLOCK)[0]), dtype=np.int16)
+                if float(oww.predict(frame).get(key, 0.0)) < 0.5:
+                    continue
+                state.set("listening")
+                winsound.Beep(880, 150)
+                audio = _record_command(stream, np, _config.load())
+                state.set("idle")
+                oww.reset()  # clear buffers so the command audio can't retrigger the wake word
+                serve(transcribe(audio))
+                oww.reset()
+            else:
+                # Fallback: whisper-transcript wake (no custom model). Short wake pause + a
+                # bias toward the wake word keep it as snappy as transcription allows.
+                base = _config.load()
+                wake_cfg = {**base, "silence_seconds": base.get("wake_silence", 0.6),
+                            "max_utterance_seconds": 6}
+                heard = transcribe(_record_command(stream, np, wake_cfg), prompt=f"Hey {wake_word}.")
+                matched, command = _wake_split(heard, wake_word)
+                if not matched:
+                    continue
+                state.set("listening")
+                winsound.Beep(880, 150)
+                if not command:  # just the wake word -> the next utterance is the command
+                    command = transcribe(_record_command(stream, np, base))
+                state.set("idle")
+                serve(command)
         except Exception as exc:
             log.warning("Voice loop error: %s", exc)
             try:
                 stream.stop()
                 _speak("Sorry — the model endpoint failed. Check the Atlas settings.")
                 stream.start()
+                if loaded:
+                    loaded[0].reset()
             except Exception:
                 pass
             time.sleep(1)

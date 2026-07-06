@@ -3,6 +3,7 @@ uvicorn
 requests
 mcp
 faster-whisper
+openwakeword  # optional: enables an instant custom acoustic wake word (config wake_model_path)
 sounddevice
 numpy
 pyttsx3
