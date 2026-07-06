@@ -4,6 +4,7 @@ PRIVACY INVARIANT: audio never leaves this machine. Wake detection and
 speech-to-text (faster-whisper) run locally on CPU; only the transcribed TEXT
 is sent to the LLM endpoint configured in config.json.
 """
+import difflib
 import logging
 import os
 import re
@@ -138,16 +139,22 @@ _WAKE_FILLERS = ("hey", "hi", "ok", "okay", "yo", "hello")
 
 
 def _wake_split(text, wake_word):
-    """(matched, command) from a transcript. Matches the wake word at the start, optionally
-    after a filler ('hey atlas ...'), and returns the rest as the command. Case/punctuation
-    are ignored; apostrophes are dropped so "what's" stays one word."""
+    """(matched, command) from a transcript. Matches the wake word FUZZILY (tolerating Whisper
+    mishears like 'atlus'/'at less') at the start, optionally after one filler ('hey atlas ...'),
+    and returns the rest as the command. Case/punctuation ignored."""
     words = re.sub(r"[^a-z0-9 ]+", " ", (text or "").lower().replace("'", "")).split()
-    w = wake_word.lower().split()
-    n = len(w)
-    if words[:n] == w:
-        return True, " ".join(words[n:])
-    if len(words) > n and words[0] in _WAKE_FILLERS and words[1:1 + n] == w:
-        return True, " ".join(words[1 + n:])
+    if not words:
+        return False, ""
+    target = wake_word.lower().replace(" ", "")
+    for start in (0, 1):  # 0 = wake word leads; 1 = one filler ('hey') then the wake word
+        if start == 1 and not (len(words) > 1 and words[0] in _WAKE_FILLERS):
+            continue
+        for k in (1, 2, 3):  # Whisper may split the wake word across up to ~3 tokens
+            seg = "".join(words[start:start + k])
+            if not seg:
+                break
+            if difflib.SequenceMatcher(None, seg, target).ratio() >= 0.75:
+                return True, " ".join(words[start + k:])
     return False, ""
 
 
@@ -173,29 +180,35 @@ def _run(cfg):
 
     from jarvis import agent, config as _config, state
 
-    def transcribe(audio):
+    def transcribe(audio, prompt=None):
         if audio is None:
             return ""
-        segments, _ = whisper.transcribe(audio.astype(np.float32) / 32768.0, beam_size=1, language="en")
+        segments, _ = whisper.transcribe(audio.astype(np.float32) / 32768.0, beam_size=1,
+                                         language="en", initial_prompt=prompt)
         return " ".join(s.text.strip() for s in segments).strip()
 
     wake_word = (cfg.get("wake_word") or "atlas").lower()
+    wake_prompt = f"Hey {wake_word}."  # bias Whisper toward the wake word so it's heard right
     active = True
     log.info("Voice ready: say '%s' (e.g. 'hey %s').", wake_word, wake_word)
-    # ponytail: whisper-transcript wake — transcribes each spoken utterance to spot the wake
-    # word, so ANY custom word works with no extra model or cloud key. Ceiling: heavier and a
-    # bit laggier than a dedicated wake model; upgrade to a trained openWakeWord model or
-    # Porcupine for an instant, cheap trigger if that ever matters.
+    # ponytail: whisper-transcript wake — transcribes each utterance to spot the wake word, so
+    # ANY custom word works with no extra model/key. Tuned for latency: the wake utterance ends
+    # on a SHORT pause (wake_silence, ~0.6s) instead of the full command pause, and Whisper is
+    # biased toward the wake word. Ceiling: still a step slower than a dedicated acoustic model
+    # (openWakeWord/Porcupine) — switch to one for instant, always-on spotting.
     while True:
         try:
-            heard = transcribe(_record_command(stream, np, _config.load()))  # one utterance, or ""
+            base = _config.load()
+            wake_cfg = {**base, "silence_seconds": base.get("wake_silence", 0.6),
+                        "max_utterance_seconds": 6}
+            heard = transcribe(_record_command(stream, np, wake_cfg), prompt=wake_prompt)
             matched, command = _wake_split(heard, wake_word)
             if not matched:
                 continue
             state.set("listening")
             winsound.Beep(880, 150)
             if not command:  # they said just the wake word -> take the next utterance as the command
-                command = transcribe(_record_command(stream, np, _config.load()))
+                command = transcribe(_record_command(stream, np, base))
             state.set("idle")
             if not command:
                 continue

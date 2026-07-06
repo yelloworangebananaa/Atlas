@@ -436,6 +436,7 @@ def test_wake_split():
     assert _wake_split("please tell atlas later", "atlas") == (False, "")  # wake word must lead
     assert _wake_split("", "atlas") == (False, "")
     assert _wake_split("hey jarvis hello", "hey jarvis") == (True, "hello")  # multi-word wake works too
+    assert _wake_split("Atlus, lights on", "atlas") == (True, "lights on")  # fuzzy: tolerate a Whisper mishear
 
 
 def test_cron_forms():
